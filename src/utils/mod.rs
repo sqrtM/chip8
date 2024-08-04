@@ -1,3 +1,5 @@
+pub mod winit_app;
+
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
