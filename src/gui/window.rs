@@ -1,4 +1,3 @@
-/// Common boilerplate for setting up a winit application.
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -7,9 +6,7 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
-/// Run a Winit application.
-#[allow(unused_mut)]
-pub(crate) fn run_app(event_loop: EventLoop<()>, mut app: impl ApplicationHandler<()> + 'static) {
+pub(crate) fn init(event_loop: EventLoop<()>, mut app: impl ApplicationHandler<()> + 'static) {
     #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
     event_loop.run_app(&mut app).unwrap();
 
