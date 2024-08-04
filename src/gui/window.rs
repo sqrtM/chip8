@@ -14,7 +14,6 @@ pub(crate) fn init<E>(event_loop: EventLoop<E>, mut app: impl ApplicationHandler
     winit::platform::web::EventLoopExtWebSys::spawn_app(event_loop, app);
 }
 
-/// Create a window from a set of window attributes.
 pub(crate) fn make_window(
     elwt: &ActiveEventLoop,
     f: impl FnOnce(WindowAttributes) -> WindowAttributes,
@@ -26,7 +25,6 @@ pub(crate) fn make_window(
     Rc::new(window.unwrap())
 }
 
-/// Easily constructable winit application.
 pub(crate) struct WinitApp<T, Init, Handler, E> {
     init: Init,
     event: Handler,
@@ -34,7 +32,6 @@ pub(crate) struct WinitApp<T, Init, Handler, E> {
     _event_marker: Option<E>,
 }
 
-/// Builder that makes it so we don't have to name `T`.
 pub(crate) struct WinitAppBuilder<T, Init, E> {
     init: Init,
     _marker: PhantomData<Option<T>>,
@@ -45,7 +42,6 @@ impl<T, Init, E: 'static> WinitAppBuilder<T, Init, E>
 where
     Init: FnMut(&ActiveEventLoop) -> T,
 {
-    /// Create with an "init" closure.
     pub(crate) fn with_init(init: Init) -> Self {
         Self {
             init,
@@ -54,7 +50,6 @@ where
         }
     }
 
-    /// Build a new application.
     pub(crate) fn with_event_handler<F>(self, handler: F) -> WinitApp<T, Init, F, E>
     where
         F: FnMut(&mut T, Event<E>, &ActiveEventLoop),
@@ -68,7 +63,6 @@ where
     Init: FnMut(&ActiveEventLoop) -> T,
     Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop),
 {
-    /// Create a new application.
     pub(crate) fn new(init: Init, event: Handler) -> Self {
         Self {
             init,

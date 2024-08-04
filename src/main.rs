@@ -7,6 +7,7 @@ use winit::{
 };
 
 mod gui;
+mod internals;
 
 #[derive(Debug)]
 pub enum MyUserDefinedEvent {

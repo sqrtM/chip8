@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::Read;
 
-struct Registers {
+pub struct Registers {
     v0: u8,
     v1: u8,
     v2: u8,
