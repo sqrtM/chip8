@@ -1,4 +1,3 @@
-use softbuffer::Surface;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -7,12 +6,7 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
-use crate::MyUserDefinedEvent;
-
-pub(crate) fn init(
-    event_loop: EventLoop<MyUserDefinedEvent>,
-    mut app: impl ApplicationHandler<MyUserDefinedEvent>,
-) {
+pub(crate) fn init<E>(event_loop: EventLoop<E>, mut app: impl ApplicationHandler<E>) {
     #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
     event_loop.run_app(&mut app).unwrap();
 
@@ -33,19 +27,21 @@ pub(crate) fn make_window(
 }
 
 /// Easily constructable winit application.
-pub(crate) struct WinitApp<T, Init, Handler> {
+pub(crate) struct WinitApp<T, Init, Handler, E> {
     init: Init,
     event: Handler,
     state: Option<T>,
+    _event_marker: Option<E>,
 }
 
 /// Builder that makes it so we don't have to name `T`.
-pub(crate) struct WinitAppBuilder<T, Init> {
+pub(crate) struct WinitAppBuilder<T, Init, E> {
     init: Init,
     _marker: PhantomData<Option<T>>,
+    _event_marker: PhantomData<Option<E>>,
 }
 
-impl<T, Init> WinitAppBuilder<T, Init>
+impl<T, Init, E: 'static> WinitAppBuilder<T, Init, E>
 where
     Init: FnMut(&ActiveEventLoop) -> T,
 {
@@ -54,22 +50,23 @@ where
         Self {
             init,
             _marker: PhantomData,
+            _event_marker: PhantomData,
         }
     }
 
     /// Build a new application.
-    pub(crate) fn with_event_handler<F>(self, handler: F) -> WinitApp<T, Init, F>
+    pub(crate) fn with_event_handler<F>(self, handler: F) -> WinitApp<T, Init, F, E>
     where
-        F: FnMut(&mut T, Event<MyUserDefinedEvent>, &ActiveEventLoop),
+        F: FnMut(&mut T, Event<E>, &ActiveEventLoop),
     {
         WinitApp::new(self.init, handler)
     }
 }
 
-impl<T, Init, Handler> WinitApp<T, Init, Handler>
+impl<T, Init, Handler, E> WinitApp<T, Init, Handler, E>
 where
     Init: FnMut(&ActiveEventLoop) -> T,
-    Handler: FnMut(&mut T, Event<MyUserDefinedEvent>, &ActiveEventLoop),
+    Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop),
 {
     /// Create a new application.
     pub(crate) fn new(init: Init, event: Handler) -> Self {
@@ -77,14 +74,15 @@ where
             init,
             event,
             state: None,
+            _event_marker: None,
         }
     }
 }
 
-impl<T, Init, Handler> ApplicationHandler<MyUserDefinedEvent> for WinitApp<T, Init, Handler>
+impl<T, Init, Handler, E: 'static> ApplicationHandler<E> for WinitApp<T, Init, Handler, E>
 where
     Init: FnMut(&ActiveEventLoop) -> T,
-    Handler: FnMut(&mut T, Event<MyUserDefinedEvent>, &ActiveEventLoop),
+    Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop),
 {
     fn resumed(&mut self, el: &ActiveEventLoop) {
         debug_assert!(self.state.is_none());
@@ -113,7 +111,7 @@ where
         }
     }
 
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: MyUserDefinedEvent) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: E) {
         ()
     }
 }

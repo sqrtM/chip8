@@ -9,11 +9,9 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::Window;
 
-use crate::MyUserDefinedEvent;
-
-pub fn handle_event(
+pub fn handle_event<E>(
     state: &mut (Rc<Window>, Surface<Rc<Window>, Rc<Window>>),
-    event: Event<MyUserDefinedEvent>,
+    event: Event<E>,
     elwt: &ActiveEventLoop,
 ) {
     let (window, surface) = state;
