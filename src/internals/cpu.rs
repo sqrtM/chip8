@@ -5,11 +5,11 @@ enum InstructionResult {
     ReturnFromSubRoutine,
     JumpTo(u16),
     Call(u16),
-    SkipIf(Register, u8),
-    SkipIfNot(Register, u8),
+    SkipIf(Register, Nybble),
+    SkipIfNot(Register, Nybble),
     SkipIfRegistersEqual(Register, Register),
-    LoadInto(Register, u8),
-    Add(Register, u8),
+    LoadInto(Register, Nybble),
+    Add(Register, Nybble),
     LoadIntoRegister(Register, Register),
     Or(Register, Register),
     And(Register, Register),
@@ -22,12 +22,12 @@ enum InstructionResult {
     SkipIfNotEqual(Register, Register),
     LoadIntoI(Address),
     JumpV0(Address),
-    Random(Register, u8),
-    Draw(DisplayCommand),
+    Random(Register, Nybble),
+    Draw(Register, Register, Nybble),
     SkipIfPressed(Register),
     SkipIfNotPressed(Register),
     LoadFromDelay(Register),
-    LoadFromKey(Register),
+    WaitForKey(Register),
     LoadToDelay(Register),
     LoadToSound(Register),
     AddToI(Register),
@@ -43,7 +43,7 @@ enum DisplayCommand {
     Draw(Sprite),
 }
 
-struct SpriteData(Vec<u8>);
+struct SpriteData(Vec<Nybble>);
 
 struct Sprite {
     x: u16,
@@ -76,9 +76,10 @@ enum Register {
 }
 
 type Address = u16;
+type Nybble = u8;
 
 impl Register {
-    fn from_u8(i: u8) -> Self {
+    fn from_Nybble(i: Nybble) -> Self {
         match i {
             0x00 => Register::V0,
             0x01 => Register::V1,
@@ -132,31 +133,46 @@ fn parse_instruction(i: u16) -> InstructionResult {
         0xA000..0xB000 => InstructionResult::LoadIntoI(address(i)),
         0xB000..0xC000 => InstructionResult::JumpV0(address(i)),
         0xC000..0xD000 => InstructionResult::Random(x_register(i), low_byte(i)),
-        0xD000..0xE000 => InstructionResult::Draw(DisplayCommand::Draw(())),
-        0xE000..0xF000 => InstructionResult::Nop,
-        0xF000..=0xFFFF => InstructionResult::Nop,
+        0xD000..0xE000 => InstructionResult::Draw(x_register(i), y_register(i), low_nybble(i)),
+        0xE000..0xF000 => match low_byte(i) {
+            0x009E => InstructionResult::SkipIfPressed(x_register(i)),
+            0x00A1 => InstructionResult::SkipIfNotPressed(x_register(i)),
+            _ => InstructionResult::Nop,
+        },
+        0xF000..=0xFFFF => match low_byte(i) {
+            0x0007 => InstructionResult::LoadFromDelay(x_register(i)),
+            0x000A => InstructionResult::WaitForKey(x_register(i)),
+            0x0015 => InstructionResult::LoadToDelay(x_register(i)),
+            0x0018 => InstructionResult::LoadToSound(x_register(i)),
+            0x001E => InstructionResult::AddToI(x_register(i)),
+            0x0029 => InstructionResult::LoadSpriteToI(x_register(i)),
+            0x0033 => InstructionResult::LoadBcd(x_register(i)),
+            0x0055 => InstructionResult::LoadToMemory(x_register(i)),
+            0x0065 => InstructionResult::LoadFromMemory(x_register(i)),
+            _ => InstructionResult::Nop,
+        },
         _ => InstructionResult::Nop,
     }
 }
 
 fn x_register(i: u16) -> Register {
-    Register::from_u8((i & 0x0F00) as u8)
+    Register::from_Nybble((i & 0x0F00) as Nybble)
 }
 
 fn y_register(i: u16) -> Register {
-    Register::from_u8((i & 0x00F0) as u8)
+    Register::from_Nybble((i & 0x00F0) as Nybble)
 }
 
-fn hi_byte(i: u16) -> u8 {
-    ((i >> 8) & 0xFF00) as u8
+fn hi_byte(i: u16) -> Nybble {
+    ((i >> 8) & 0xFF00) as Nybble
 }
 
-fn low_byte(i: u16) -> u8 {
-    (i & 0x00FF) as u8
+fn low_byte(i: u16) -> Nybble {
+    (i & 0x00FF) as Nybble
 }
 
-fn low_nybble(i: u16) -> u8 {
-    (i & 0x000F) as u8
+fn low_nybble(i: u16) -> Nybble {
+    (i & 0x000F) as Nybble
 }
 
 fn address(i: u16) -> Address {
