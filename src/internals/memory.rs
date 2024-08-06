@@ -3,31 +3,31 @@ use std::io::BufReader;
 use std::io::Read;
 
 pub struct Registers {
-    v0: u8,
-    v1: u8,
-    v2: u8,
-    v3: u8,
-    v4: u8,
-    v5: u8,
-    v6: u8,
-    v7: u8,
-    v8: u8,
-    v9: u8,
-    va: u8,
-    vb: u8,
-    vc: u8,
-    vd: u8,
-    ve: u8,
-    vf: u8,
-    vi: u16,
-    delay: u8,
-    sound: u8,
-    pc: u16,
-    sp: u8,
-    stack: [u16; 16],
+    pub v0: u8,
+    pub v1: u8,
+    pub v2: u8,
+    pub v3: u8,
+    pub v4: u8,
+    pub v5: u8,
+    pub v6: u8,
+    pub v7: u8,
+    pub v8: u8,
+    pub v9: u8,
+    pub va: u8,
+    pub vb: u8,
+    pub vc: u8,
+    pub vd: u8,
+    pub ve: u8,
+    pub vf: u8,
+    pub vi: u16,
+    pub delay: u8,
+    pub sound: u8,
+    pub pc: u16,
+    pub sp: u8,
+    pub stack: Vec<u16>,
 }
 
-pub struct Ram([u8; 4096]);
+pub struct Ram(pub [u8; 4096]);
 
 impl Ram {
     pub fn init() -> Ram {
