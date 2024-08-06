@@ -60,22 +60,22 @@ pub struct CPU {
 
 #[derive(Clone, Copy)]
 enum Register {
-    V0,
-    V1,
-    V2,
-    V3,
-    V4,
-    V5,
-    V6,
-    V7,
-    V8,
-    V9,
-    VA,
-    VB,
-    VC,
-    VD,
-    VE,
-    VF,
+    V0 = 0x00,
+    V1 = 0x01,
+    V2 = 0x02,
+    V3 = 0x03,
+    V4 = 0x04,
+    V5 = 0x05,
+    V6 = 0x06,
+    V7 = 0x07,
+    V8 = 0x08,
+    V9 = 0x09,
+    VA = 0x0A,
+    VB = 0x0B,
+    VC = 0x0C,
+    VD = 0x0D,
+    VE = 0x0E,
+    VF = 0x0F,
 }
 
 type Address = u16;
@@ -179,35 +179,44 @@ impl CPU {
             Instruction::AddRegisters(x, y) => {
                 let x_plus_y = self.read(x).overflowing_add(self.read(y));
                 self.write(x, x_plus_y.0);
-                self.registers.vf = if x_plus_y.1 { 1 } else { 0 };
+                self.write(Register::VF, if x_plus_y.1 { 1 } else { 0 });
                 self.registers.pc += 1;
                 Ok(InstructionResult::Success)
             }
             Instruction::Sub(x, y) => {
                 let x_minus_y = self.read(x).wrapping_sub(self.read(y));
                 self.write(x, x_minus_y);
-                self.registers.vf = if self.read(x) > self.read(y) { 0 } else { 1 };
+                self.write(
+                    Register::VF,
+                    if self.read(x) > self.read(y) { 0 } else { 1 },
+                );
                 self.registers.pc += 1;
                 Ok(InstructionResult::Success)
             }
             Instruction::ShiftRight(x, y) => {
                 let y_shr = self.read(y) >> 1;
                 self.write(x, y_shr);
-                self.registers.vf = if self.read(y) & 1 == 1 { 1 } else { 0 };
+                self.write(Register::VF, if self.read(y) & 1 == 1 { 1 } else { 0 });
                 self.registers.pc += 1;
                 Ok(InstructionResult::Success)
             }
             Instruction::SubBorrow(x, y) => {
                 let y_minus_x = self.read(y).wrapping_sub(self.read(x));
                 self.write(x, y_minus_x);
-                self.registers.vf = if self.read(y) > self.read(x) { 0 } else { 1 };
+                self.write(
+                    Register::VF,
+                    if self.read(y) > self.read(x) { 0 } else { 1 },
+                );
                 self.registers.pc += 1;
                 Ok(InstructionResult::Success)
             }
             Instruction::ShiftLeft(x, y) => {
                 let y_shl = self.read(y) << 1;
                 self.write(x, y_shl);
-                self.registers.vf = if (self.read(y) & (1 << 7)) != 0 { 1 } else { 0 };
+                self.write(
+                    Register::VF,
+                    if (self.read(y) & (1 << 7)) != 0 { 1 } else { 0 },
+                );
                 self.registers.pc += 1;
                 Ok(InstructionResult::Success)
             }
@@ -276,52 +285,26 @@ impl CPU {
                 self.write_i(bcd);
                 Ok(InstructionResult::Success)
             }
-            Instruction::LoadToMemory(x) => todo!(),
-            Instruction::LoadFromMemory(x) => todo!(),
+            Instruction::LoadToMemory(x) => {
+                let range = self.read_i() as usize..(self.read_i() + x as u16) as usize;
+                self.memory.0[range].copy_from_slice(&self.registers.r[0..x as usize]);
+                Ok(InstructionResult::Success)
+            }
+            Instruction::LoadFromMemory(x) => {
+                let range = self.read_i() as usize..(self.read_i() + x as u16) as usize;
+                self.registers.r[0..x as usize].copy_from_slice(&self.memory.0[range]);
+                Ok(InstructionResult::Success)
+            }
             Instruction::Nop => Ok(InstructionResult::Success),
         }
     }
 
     fn read(&self, r: Register) -> u8 {
-        match r {
-            Register::V0 => self.registers.v0,
-            Register::V1 => self.registers.v1,
-            Register::V2 => self.registers.v2,
-            Register::V3 => self.registers.v3,
-            Register::V4 => self.registers.v4,
-            Register::V5 => self.registers.v5,
-            Register::V6 => self.registers.v6,
-            Register::V7 => self.registers.v7,
-            Register::V8 => self.registers.v8,
-            Register::V9 => self.registers.v9,
-            Register::VA => self.registers.va,
-            Register::VB => self.registers.vb,
-            Register::VC => self.registers.vc,
-            Register::VD => self.registers.vd,
-            Register::VE => self.registers.ve,
-            Register::VF => self.registers.vf,
-        }
+        self.registers.r[r as usize]
     }
 
     fn write(&mut self, r: Register, v: u8) -> () {
-        match r {
-            Register::V0 => self.registers.v0 = v,
-            Register::V1 => self.registers.v1 = v,
-            Register::V2 => self.registers.v2 = v,
-            Register::V3 => self.registers.v3 = v,
-            Register::V4 => self.registers.v4 = v,
-            Register::V5 => self.registers.v5 = v,
-            Register::V6 => self.registers.v6 = v,
-            Register::V7 => self.registers.v7 = v,
-            Register::V8 => self.registers.v8 = v,
-            Register::V9 => self.registers.v9 = v,
-            Register::VA => self.registers.va = v,
-            Register::VB => self.registers.vb = v,
-            Register::VC => self.registers.vc = v,
-            Register::VD => self.registers.vd = v,
-            Register::VE => self.registers.ve = v,
-            Register::VF => self.registers.vf = v,
-        }
+        self.registers.r[r as usize] = v
     }
 
     fn read_i(&self) -> u16 {

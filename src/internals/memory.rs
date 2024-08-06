@@ -3,22 +3,7 @@ use std::io::BufReader;
 use std::io::Read;
 
 pub struct Registers {
-    pub v0: u8,
-    pub v1: u8,
-    pub v2: u8,
-    pub v3: u8,
-    pub v4: u8,
-    pub v5: u8,
-    pub v6: u8,
-    pub v7: u8,
-    pub v8: u8,
-    pub v9: u8,
-    pub va: u8,
-    pub vb: u8,
-    pub vc: u8,
-    pub vd: u8,
-    pub ve: u8,
-    pub vf: u8,
+    pub r: [u8; 16],
     pub vi: u16,
     pub delay: u8,
     pub sound: u8,
