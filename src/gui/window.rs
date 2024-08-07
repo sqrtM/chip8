@@ -9,7 +9,12 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 use crate::Controller;
 
-pub(crate) fn init<E>(event_loop: EventLoop<E>, mut app: impl ApplicationHandler<E>) {
+use super::UserEvent;
+
+pub(crate) fn init<E>(event_loop: EventLoop<E>, mut app: impl ApplicationHandler<E>)
+where
+    E: UserEvent,
+{
     #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
     event_loop.run_app(&mut app).unwrap();
 
@@ -28,7 +33,10 @@ pub(crate) fn make_window(
     Rc::new(window.unwrap())
 }
 
-pub(crate) struct WinitApp<T, Init, Handler, E> {
+pub(crate) struct WinitApp<T, Init, Handler, E>
+where
+    E: UserEvent,
+{
     init: Init,
     event: Handler,
     state: Option<T>,
@@ -36,7 +44,10 @@ pub(crate) struct WinitApp<T, Init, Handler, E> {
     _event_marker: Option<E>,
 }
 
-pub(crate) struct WinitAppBuilder<T, Init, E> {
+pub(crate) struct WinitAppBuilder<T, Init, E>
+where
+    E: UserEvent,
+{
     init: Init,
     _marker: PhantomData<Option<T>>,
     _event_marker: PhantomData<Option<E>>,
@@ -45,6 +56,7 @@ pub(crate) struct WinitAppBuilder<T, Init, E> {
 impl<T, Init, E: 'static> WinitAppBuilder<T, Init, E>
 where
     Init: FnMut(&ActiveEventLoop) -> T,
+    E: UserEvent,
 {
     pub(crate) fn with_init(init: Init) -> Self {
         Self {
@@ -61,6 +73,7 @@ where
     ) -> WinitApp<T, Init, F, E>
     where
         F: FnMut(&mut T, Event<E>, &ActiveEventLoop, Arc<RwLock<Controller>>),
+        E: UserEvent,
     {
         WinitApp::new(self.init, handler, controller)
     }
@@ -70,6 +83,7 @@ impl<T, Init, Handler, E> WinitApp<T, Init, Handler, E>
 where
     Init: FnMut(&ActiveEventLoop) -> T,
     Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop, Arc<RwLock<Controller>>),
+    E: UserEvent,
 {
     pub(crate) fn new(init: Init, event: Handler, controller: Arc<RwLock<Controller>>) -> Self {
         Self {
@@ -86,6 +100,7 @@ impl<T, Init, Handler, E: 'static> ApplicationHandler<E> for WinitApp<T, Init, H
 where
     Init: FnMut(&ActiveEventLoop) -> T,
     Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop, Arc<RwLock<Controller>>),
+    E: UserEvent,
 {
     fn resumed(&mut self, el: &ActiveEventLoop) {
         debug_assert!(self.state.is_none());
@@ -125,6 +140,12 @@ where
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: E) {
-        println!("RECIEVED COMMAND")
+        let state = self.state.as_mut().unwrap();
+        (self.event)(
+            state,
+            Event::UserEvent(event),
+            event_loop,
+            Arc::clone(&self.controller),
+        );
     }
 }

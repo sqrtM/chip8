@@ -2,10 +2,13 @@ pub mod memory;
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    gui::Controller,
+    gui::{Controller, UserEvent},
     internals::memory::{Ram, Registers},
 };
 use rand::prelude::*;
+
+const WHITE: u32 = 0b00000000_11111111_11111111_11111111;
+const BLACK: u32 = 0;
 
 #[derive(Debug)]
 pub enum Instruction {
@@ -51,12 +54,35 @@ pub enum DisplayCommand {
     Draw(Sprite),
 }
 
+impl UserEvent for DisplayCommand {
+    fn transform(&self, b: &mut [u32]) {
+        match self {
+            DisplayCommand::ClearDisplay => b.fill(0),
+            DisplayCommand::Draw(s) => {
+                for (i, d) in s.data.0.iter().enumerate() {
+                    let y_coord = s.y as usize + i;
+                    let width = 6400;
+                    for j in (0..8).rev() {
+                        let x_coord = s.x as usize + (8 - j);
+                        let index: usize = y_coord * width + x_coord;
+                        b[index] = if (d >> j) & 1 == 1 {
+                            b[index] | WHITE
+                        } else {
+                            b[index] | BLACK
+                        };
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct SpriteData(Vec<Nybble>);
 
-struct Sprite {
+pub struct Sprite {
     x: u8,
     y: u8,
-    data: SpriteData,
+    data: SpriteData, // max length of 15 (0xF)
 }
 
 pub struct Chip8 {
@@ -265,7 +291,15 @@ impl Chip8 {
                 Ok(InstructionResult::Display(DisplayCommand::Draw(Sprite {
                     x: self.read(x),
                     y: self.read(y),
-                    data: SpriteData(self.memory.0.iter().skip(l as usize).cloned().collect()),
+                    data: SpriteData(
+                        self.memory
+                            .0
+                            .iter()
+                            .skip(self.read_i() as usize)
+                            .take(l as usize)
+                            .cloned()
+                            .collect(),
+                    ),
                 })))
             }
             Instruction::SkipIfPressed(_) => todo!(),

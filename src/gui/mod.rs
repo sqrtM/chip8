@@ -15,12 +15,18 @@ pub struct Controller {
     pub pressing: Vec<Key>,
 }
 
+pub trait UserEvent {
+    fn transform(&self, b: &mut [u32]) -> ();
+}
+
 pub fn handle_event<E>(
     state: &mut (Rc<Window>, Surface<Rc<Window>, Rc<Window>>),
     event: Event<E>,
     elwt: &ActiveEventLoop,
     cont: Arc<RwLock<Controller>>,
-) {
+) where
+    E: UserEvent,
+{
     let (window, surface) = state;
     elwt.set_control_flow(ControlFlow::Wait);
 
@@ -37,18 +43,8 @@ pub fn handle_event<E>(
                 (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
             } {
                 surface.resize(width, height).unwrap();
-
                 let mut buffer = surface.buffer_mut().unwrap();
-                for y in 0..3200 {
-                    for x in 0..6400 {
-                        let red = x % 255;
-                        let green = y % 255;
-                        let blue = (x * y) % 255;
-                        let index = y as usize * width.get() as usize + x as usize;
-                        buffer[index] = blue | (green << 8) | (red << 16);
-                    }
-                }
-
+                buffer.fill(0);
                 buffer.present().unwrap();
             }
         }
@@ -96,6 +92,11 @@ pub fn handle_event<E>(
             }
             Err(e) => println!("{}", e),
         },
+        Event::UserEvent(e) => {
+            let mut buffer = surface.buffer_mut().unwrap();
+            e.transform(buffer.as_mut());
+            buffer.present().unwrap();
+        }
         _ => {}
     }
 }
