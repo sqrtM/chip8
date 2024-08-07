@@ -1,5 +1,5 @@
 use crate::gui::{handle_event, Controller};
-use internals::DisplayCommand;
+use internals::{Chip8, DisplayCommand};
 use softbuffer::Surface;
 use std::{
     rc::Rc,
@@ -22,12 +22,40 @@ fn main() {
     let controller = Arc::new(RwLock::new(Controller::default()));
     let (ro_controller, wo_controller) = (Arc::clone(&controller), Arc::clone(&controller));
 
-    std::thread::spawn(move || loop {
-        //let _ = _event_loop_proxy.send_event(DisplayCommand::Quit);
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        match ro_controller.try_read() {
-            Ok(v) => println!("{:?}", v.pressing),
-            Err(e) => println!("{}", e),
+    std::thread::spawn(move || {
+        let mut chip8 = Chip8::new(ro_controller);
+        chip8.memory.load("./data/inital_ram_data.chip8");
+        chip8.memory.load("./data/1-chip8-logo.ch8");
+
+        loop {
+            let inst = internals::parse_opcode(
+                ((chip8.memory.0[chip8.registers.pc as usize] as u16) << 8) as u16
+                    | chip8.memory.0[chip8.registers.pc as usize + 1] as u16,
+            );
+            println!(
+                "{:?} ; {:b}-{:b} ; {:X?}",
+                inst,
+                (chip8.memory.0[chip8.registers.pc as usize] << 4) as u16,
+                chip8.memory.0[chip8.registers.pc as usize + 1] as u16,
+                chip8.registers.pc
+            );
+            match chip8.run_instruction(inst) {
+                Ok(s) => match s {
+                    internals::InstructionResult::Success => (),
+                    internals::InstructionResult::Display(d) => {
+                        match _event_loop_proxy.send_event(d) {
+                            Ok(()) => (),
+                            Err(..) => println!("ERR: Event loop Closed !"),
+                        }
+                    }
+                },
+                Err(e) => println!("{:?}", e),
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            match chip8.controller.try_read() {
+                Ok(v) => println!("{:?}", v.pressing),
+                Err(e) => println!("{}", e),
+            }
         }
     });
 

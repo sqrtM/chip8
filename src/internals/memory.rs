@@ -12,6 +12,20 @@ pub struct Registers {
     pub stack: Vec<u16>,
 }
 
+impl Default for Registers {
+    fn default() -> Self {
+        Registers {
+            r: [0; 16],
+            vi: 0,
+            delay: 0,
+            sound: 0,
+            pc: 0x200,
+            sp: 0,
+            stack: Vec::new(),
+        }
+    }
+}
+
 pub struct Ram(pub [u8; 4096]);
 
 impl Ram {
@@ -21,7 +35,7 @@ impl Ram {
         r
     }
 
-    fn load(&mut self, path: &str) {
+    pub fn load(&mut self, path: &str) {
         let file = File::open(path);
         let mut reader = BufReader::new(file.unwrap());
         let mut buffer = vec![0; 1];
@@ -32,5 +46,11 @@ impl Ram {
             self.0[index + 0x200] = number;
             index += 1;
         }
+    }
+}
+
+impl Default for Ram {
+    fn default() -> Self {
+        Ram([0; 4096])
     }
 }

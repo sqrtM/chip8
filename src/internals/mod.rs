@@ -1,8 +1,17 @@
 pub mod memory;
-use crate::internals::memory::{Ram, Registers};
+use std::{
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
+
+use crate::{
+    gui::Controller,
+    internals::memory::{Ram, Registers},
+};
 use rand::prelude::*;
 
-enum Instruction {
+#[derive(Debug)]
+pub enum Instruction {
     ClearDisplay,
     ReturnFromSubRoutine,
     JumpTo(Address),
@@ -56,10 +65,21 @@ struct Sprite {
 pub struct Chip8 {
     pub registers: Registers,
     pub memory: Ram,
+    pub controller: Arc<RwLock<Controller>>,
 }
 
-#[derive(Clone, Copy)]
-enum Register {
+impl Chip8 {
+    pub fn new(controller: Arc<RwLock<Controller>>) -> Self {
+        Chip8 {
+            registers: Registers::default(),
+            memory: Ram::default(),
+            controller,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Register {
     V0 = 0x00,
     V1 = 0x01,
     V2 = 0x02,
@@ -100,20 +120,25 @@ impl Register {
             0x0D => Register::VD,
             0x0E => Register::VE,
             0x0F => Register::VF,
-            _ => panic!(),
+            _ => panic!("{:?}", i),
         }
     }
 }
 
-enum InstructionResult {
+pub enum InstructionResult {
     Success,
     Display(DisplayCommand),
 }
 
 impl Chip8 {
-    fn run_instruction(&mut self, i: Instruction) -> Result<InstructionResult, ()> {
+    pub fn increment_pc(&mut self, increments: u16) {
+        self.registers.pc += (2 * increments)
+    }
+
+    pub fn run_instruction(&mut self, i: Instruction) -> Result<InstructionResult, ()> {
         match i {
             Instruction::ClearDisplay => {
+                self.increment_pc(1);
                 Ok(InstructionResult::Display(DisplayCommand::ClearDisplay))
             }
             Instruction::ReturnFromSubRoutine => match self.registers.stack.pop() {
@@ -129,58 +154,58 @@ impl Chip8 {
                 Ok(InstructionResult::Success)
             }
             Instruction::Call(addr) => {
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 self.registers.stack.push(self.registers.pc);
                 self.registers.pc = addr;
                 Ok(InstructionResult::Success)
             }
             Instruction::SkipIf(x, v) => {
-                self.registers.pc += if self.read(x) == v { 2 } else { 1 };
+                self.increment_pc(if self.read(x) == v { 2 } else { 1 });
                 Ok(InstructionResult::Success)
             }
             Instruction::SkipIfNot(x, v) => {
-                self.registers.pc += if self.read(x) != v { 2 } else { 1 };
+                self.increment_pc(if self.read(x) != v { 2 } else { 1 });
                 Ok(InstructionResult::Success)
             }
             Instruction::SkipIfRegistersEqual(x, y) => {
-                self.registers.pc += if self.read(x) == self.read(y) { 2 } else { 1 };
+                self.increment_pc(if self.read(x) == self.read(y) { 2 } else { 1 });
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadInto(x, v) => {
                 self.write(x, v);
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::Add(x, v) => {
                 self.write(x, self.read(x).wrapping_add(v));
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadIntoRegister(x, y) => {
                 self.write(x, self.read(y));
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::Or(x, y) => {
                 self.write(x, self.read(x) | self.read(y));
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::And(x, y) => {
                 self.write(x, self.read(x) & self.read(y));
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::Xor(x, y) => {
                 self.write(x, self.read(x) ^ self.read(y));
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::AddRegisters(x, y) => {
                 let x_plus_y = self.read(x).overflowing_add(self.read(y));
                 self.write(x, x_plus_y.0);
                 self.write(Register::VF, if x_plus_y.1 { 1 } else { 0 });
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::Sub(x, y) => {
@@ -190,14 +215,14 @@ impl Chip8 {
                     Register::VF,
                     if self.read(x) > self.read(y) { 0 } else { 1 },
                 );
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::ShiftRight(x, y) => {
                 let y_shr = self.read(y) >> 1;
                 self.write(x, y_shr);
                 self.write(Register::VF, if self.read(y) & 1 == 1 { 1 } else { 0 });
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::SubBorrow(x, y) => {
@@ -207,7 +232,7 @@ impl Chip8 {
                     Register::VF,
                     if self.read(y) > self.read(x) { 0 } else { 1 },
                 );
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::ShiftLeft(x, y) => {
@@ -217,15 +242,16 @@ impl Chip8 {
                     Register::VF,
                     if (self.read(y) & (1 << 7)) != 0 { 1 } else { 0 },
                 );
-                self.registers.pc += 1;
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::SkipIfNotEqual(x, y) => {
-                self.registers.pc += if self.read(x) != self.read(y) { 2 } else { 1 };
+                self.increment_pc(if self.read(x) != self.read(y) { 2 } else { 1 });
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadIntoI(addr) => {
                 self.write_i(addr);
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::JumpV0(addr) => {
@@ -234,9 +260,11 @@ impl Chip8 {
             }
             Instruction::Random(x, v) => {
                 self.write(x, rand::thread_rng().gen::<u8>() & v);
+                self.increment_pc(1);
                 Ok(InstructionResult::Success)
             }
             Instruction::Draw(x, y, l) => {
+                self.increment_pc(1);
                 Ok(InstructionResult::Display(DisplayCommand::Draw(Sprite {
                     x: self.read(x),
                     y: self.read(y),
@@ -328,7 +356,7 @@ impl Chip8 {
     }
 }
 
-fn parse_opcode(i: u16) -> Instruction {
+pub fn parse_opcode(i: u16) -> Instruction {
     match i {
         0x00E0 => Instruction::ClearDisplay,
         0x00EE => Instruction::ReturnFromSubRoutine,
@@ -378,11 +406,11 @@ fn parse_opcode(i: u16) -> Instruction {
 }
 
 fn x_register(i: u16) -> Register {
-    Register::from_nybble((i & 0x0F00) as Nybble)
+    Register::from_nybble(((i & 0x0F00) >> 12) as Nybble)
 }
 
 fn y_register(i: u16) -> Register {
-    Register::from_nybble((i & 0x00F0) as Nybble)
+    Register::from_nybble(((i & 0x00F0) >> 8) as Nybble)
 }
 
 fn hi_byte(i: u16) -> Nybble {
