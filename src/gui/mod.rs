@@ -3,16 +3,20 @@ pub mod window;
 use softbuffer::Surface;
 use std::num::NonZeroU32;
 use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 use winit::dpi::PhysicalSize;
-use winit::event::{Event, KeyEvent, WindowEvent};
+use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::Window;
+
+use crate::Controller;
 
 pub fn handle_event<E>(
     state: &mut (Rc<Window>, Surface<Rc<Window>, Rc<Window>>),
     event: Event<E>,
     elwt: &ActiveEventLoop,
+    cont: Arc<RwLock<Controller>>,
 ) {
     let (window, surface) = state;
     elwt.set_control_flow(ControlFlow::Wait);
@@ -60,6 +64,22 @@ pub fn handle_event<E>(
         } if window_id == window.id() => {
             elwt.exit();
         }
+        Event::WindowEvent {
+            event:
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: Key::Named(NamedKey::ArrowUp),
+                            state,
+                            ..
+                        },
+                    ..
+                },
+            window_id,
+        } if window_id == window.id() => match cont.try_write() {
+            Ok(mut v) => v.pressed = matches!(state, ElementState::Pressed),
+            Err(e) => println!("{}", e),
+        },
         _ => {}
     }
 }

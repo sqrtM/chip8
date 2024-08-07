@@ -1,10 +1,13 @@
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use winit::application::ApplicationHandler;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
+
+use crate::Controller;
 
 pub(crate) fn init<E>(event_loop: EventLoop<E>, mut app: impl ApplicationHandler<E>) {
     #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
@@ -29,6 +32,7 @@ pub(crate) struct WinitApp<T, Init, Handler, E> {
     init: Init,
     event: Handler,
     state: Option<T>,
+    controller: Arc<RwLock<Controller>>,
     _event_marker: Option<E>,
 }
 
@@ -50,23 +54,28 @@ where
         }
     }
 
-    pub(crate) fn with_event_handler<F>(self, handler: F) -> WinitApp<T, Init, F, E>
+    pub(crate) fn with_event_handler<F>(
+        self,
+        handler: F,
+        controller: Arc<RwLock<Controller>>,
+    ) -> WinitApp<T, Init, F, E>
     where
-        F: FnMut(&mut T, Event<E>, &ActiveEventLoop),
+        F: FnMut(&mut T, Event<E>, &ActiveEventLoop, Arc<RwLock<Controller>>),
     {
-        WinitApp::new(self.init, handler)
+        WinitApp::new(self.init, handler, controller)
     }
 }
 
 impl<T, Init, Handler, E> WinitApp<T, Init, Handler, E>
 where
     Init: FnMut(&ActiveEventLoop) -> T,
-    Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop),
+    Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop, Arc<RwLock<Controller>>),
 {
-    pub(crate) fn new(init: Init, event: Handler) -> Self {
+    pub(crate) fn new(init: Init, event: Handler, controller: Arc<RwLock<Controller>>) -> Self {
         Self {
             init,
             event,
+            controller,
             state: None,
             _event_marker: None,
         }
@@ -76,7 +85,7 @@ where
 impl<T, Init, Handler, E: 'static> ApplicationHandler<E> for WinitApp<T, Init, Handler, E>
 where
     Init: FnMut(&ActiveEventLoop) -> T,
-    Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop),
+    Handler: FnMut(&mut T, Event<E>, &ActiveEventLoop, Arc<RwLock<Controller>>),
 {
     fn resumed(&mut self, el: &ActiveEventLoop) {
         debug_assert!(self.state.is_none());
@@ -96,12 +105,22 @@ where
         event: WindowEvent,
     ) {
         let state = self.state.as_mut().unwrap();
-        (self.event)(state, Event::WindowEvent { window_id, event }, event_loop);
+        (self.event)(
+            state,
+            Event::WindowEvent { window_id, event },
+            event_loop,
+            Arc::clone(&self.controller),
+        );
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(state) = self.state.as_mut() {
-            (self.event)(state, Event::AboutToWait, event_loop);
+            (self.event)(
+                state,
+                Event::AboutToWait,
+                event_loop,
+                Arc::clone(&self.controller),
+            );
         }
     }
 

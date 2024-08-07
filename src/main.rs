@@ -34,14 +34,20 @@ fn main() {
     std::thread::spawn(move || loop {
         let _ = _event_loop_proxy.send_event(MyUserDefinedEvent::Quit);
         std::thread::sleep(std::time::Duration::from_secs(1));
-        if ro_controller.read().unwrap().pressed {
-            println!("hello!!!")
-        } else {
-            println!("goodbye!!!")
+        match ro_controller.try_read() {
+            Ok(v) => {
+                if v.pressed {
+                    println!("HELLOO")
+                } else {
+                    println!("GOODBYEE")
+                }
+            }
+            Err(e) => println!("{}", e),
         }
     });
 
-    let app = gui::window::WinitAppBuilder::with_init(initalize).with_event_handler(handle_event);
+    let app = gui::window::WinitAppBuilder::with_init(initalize)
+        .with_event_handler(handle_event, wo_controller);
 
     gui::window::init(event_loop, app);
 }
