@@ -1,8 +1,5 @@
 pub mod memory;
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use crate::{
     gui::Controller,
@@ -132,7 +129,7 @@ pub enum InstructionResult {
 
 impl Chip8 {
     pub fn increment_pc(&mut self, increments: u16) {
-        self.registers.pc += (2 * increments)
+        self.registers.pc += 2 * increments
     }
 
     pub fn run_instruction(&mut self, i: Instruction) -> Result<InstructionResult, ()> {
@@ -331,7 +328,7 @@ impl Chip8 {
         self.registers.r[r as usize]
     }
 
-    fn write(&mut self, r: Register, v: u8) -> () {
+    fn write(&mut self, r: Register, v: u8) {
         self.registers.r[r as usize] = v
     }
 
@@ -339,7 +336,7 @@ impl Chip8 {
         self.registers.vi
     }
 
-    fn write_i(&mut self, v: u16) -> () {
+    fn write_i(&mut self, v: u16) {
         self.registers.vi = v
     }
 
@@ -347,7 +344,7 @@ impl Chip8 {
         self.registers.delay
     }
 
-    fn write_delay(&mut self, v: u8) -> () {
+    fn write_delay(&mut self, v: u8) {
         self.registers.delay = v
     }
 

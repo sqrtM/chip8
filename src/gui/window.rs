@@ -124,5 +124,7 @@ where
         }
     }
 
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: E) {}
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: E) {
+        println!("RECIEVED COMMAND")
+    }
 }

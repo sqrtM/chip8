@@ -29,7 +29,7 @@ fn main() {
 
         loop {
             let inst = internals::parse_opcode(
-                ((chip8.memory.0[chip8.registers.pc as usize] as u16) << 8) as u16
+                ((chip8.memory.0[chip8.registers.pc as usize] as u16) << 8)
                     | chip8.memory.0[chip8.registers.pc as usize + 1] as u16,
             );
             println!(
