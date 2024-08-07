@@ -10,7 +10,10 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::Window;
 
-use crate::Controller;
+#[derive(Default)]
+pub struct Controller {
+    pub pressing: Vec<Key>,
+}
 
 pub fn handle_event<E>(
     state: &mut (Rc<Window>, Surface<Rc<Window>, Rc<Window>>),
@@ -69,7 +72,7 @@ pub fn handle_event<E>(
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
-                            logical_key: Key::Named(NamedKey::ArrowUp),
+                            logical_key: key,
                             state,
                             ..
                         },
@@ -77,7 +80,20 @@ pub fn handle_event<E>(
                 },
             window_id,
         } if window_id == window.id() => match cont.try_write() {
-            Ok(mut v) => v.pressed = matches!(state, ElementState::Pressed),
+            Ok(mut v) => {
+                match state {
+                    ElementState::Pressed => {
+                        if !v.pressing.contains(&key) {
+                            v.pressing.push(key)
+                        }
+                    }
+                    ElementState::Released => {
+                        if let Some(k) = v.pressing.iter().position(|x| x == &key) {
+                            v.pressing.remove(k);
+                        }
+                    }
+                };
+            }
             Err(e) => println!("{}", e),
         },
         _ => {}

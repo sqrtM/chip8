@@ -1,4 +1,5 @@
-use crate::gui::handle_event;
+use crate::gui::{handle_event, Controller};
+use internals::DisplayCommand;
 use softbuffer::Surface;
 use std::{
     rc::Rc,
@@ -12,36 +13,20 @@ use winit::{
 mod gui;
 mod internals;
 
-#[derive(Debug)]
-pub enum MyUserDefinedEvent {
-    Quit,
-}
-
-#[derive(Default)]
-pub struct Controller {
-    pressed: bool,
-}
-
 fn main() {
-    let event_loop = EventLoop::<MyUserDefinedEvent>::with_user_event()
+    let event_loop = EventLoop::<DisplayCommand>::with_user_event()
         .build()
         .unwrap();
     let _event_loop_proxy = event_loop.create_proxy();
 
     let controller = Arc::new(RwLock::new(Controller::default()));
-
     let (ro_controller, wo_controller) = (Arc::clone(&controller), Arc::clone(&controller));
+
     std::thread::spawn(move || loop {
-        let _ = _event_loop_proxy.send_event(MyUserDefinedEvent::Quit);
+        //let _ = _event_loop_proxy.send_event(DisplayCommand::Quit);
         std::thread::sleep(std::time::Duration::from_secs(1));
         match ro_controller.try_read() {
-            Ok(v) => {
-                if v.pressed {
-                    println!("HELLOO")
-                } else {
-                    println!("GOODBYEE")
-                }
-            }
+            Ok(v) => println!("{:?}", v.pressing),
             Err(e) => println!("{}", e),
         }
     });
