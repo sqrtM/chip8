@@ -51,25 +51,35 @@ pub enum Instruction {
 
 pub enum DisplayCommand {
     ClearDisplay,
-    Draw(Sprite),
+    Draw([u32; 2048]),
 }
 
 impl UserEvent for DisplayCommand {
     fn transform(&self, b: &mut [u32]) {
         match self {
             DisplayCommand::ClearDisplay => b.fill(0),
-            DisplayCommand::Draw(s) => {
-                for (i, d) in s.data.0.iter().enumerate() {
-                    let y_coord = s.y as usize + i;
-                    let width = 6400;
-                    for j in (0..8).rev() {
-                        let x_coord = s.x as usize + (8 - j);
-                        let index: usize = y_coord * width + x_coord;
-                        b[index] = if (d >> j) & 1 == 1 {
-                            b[index] | WHITE
-                        } else {
-                            b[index] | BLACK
-                        };
+            DisplayCommand::Draw(fb) => {
+                let original_width = 64;
+                let scale_factor = 20;
+                let original_height = 32;
+                // Calculate new dimensions
+                let new_width = original_width * scale_factor;
+
+                for y in 0..original_height {
+                    for x in 0..original_width {
+                        // Get the original pixel value
+                        let pixel = fb[y * original_width + x];
+
+                        // Calculate the position in the scaled framebuffer
+                        for dy in 0..scale_factor {
+                            for dx in 0..scale_factor {
+                                let new_x = x * scale_factor + dx;
+                                let new_y = y * scale_factor + dy;
+
+                                // Set the pixel in the scaled framebuffer
+                                b[new_y * new_width + new_x] = pixel;
+                            }
+                        }
                     }
                 }
             }
@@ -89,15 +99,19 @@ pub struct Chip8 {
     pub registers: Registers,
     pub memory: Ram,
     pub controller: Arc<RwLock<Controller>>,
+    pub frame_buffer: [u32; 2048],
 }
 
 impl Chip8 {
     pub fn new(controller: Arc<RwLock<Controller>>) -> Self {
-        Chip8 {
+        let mut c8 = Chip8 {
             registers: Registers::default(),
             memory: Ram::default(),
             controller,
-        }
+            frame_buffer: [0; 2048],
+        };
+        c8.memory.load("./data/inital_ram_data.chip8");
+        c8
     }
 }
 
@@ -167,7 +181,6 @@ impl Chip8 {
             Instruction::ReturnFromSubRoutine => match self.registers.stack.pop() {
                 Some(addr) => {
                     self.registers.pc = addr;
-                    self.registers.pc -= 1;
                     Ok(InstructionResult::Success)
                 }
                 None => Err(()),
@@ -288,7 +301,7 @@ impl Chip8 {
             }
             Instruction::Draw(x, y, l) => {
                 self.increment_pc(1);
-                Ok(InstructionResult::Display(DisplayCommand::Draw(Sprite {
+                let s = Sprite {
                     x: self.read(x),
                     y: self.read(y),
                     data: SpriteData(
@@ -300,34 +313,58 @@ impl Chip8 {
                             .cloned()
                             .collect(),
                     ),
-                })))
+                };
+
+                for (i, byte) in s.data.0.iter().enumerate() {
+                    let y_coord = (s.y as usize + i) % 32;
+                    let width = 64;
+                    for j in (0..8).rev() {
+                        let x_coord = (s.x as usize + (8 - j - 1)) % width;
+                        let index: usize = y_coord * width + x_coord;
+                        self.frame_buffer[index] = if (byte >> j) & 1 == 1 {
+                            self.frame_buffer[index] ^ WHITE
+                        } else {
+                            BLACK
+                        };
+                    }
+                }
+
+                Ok(InstructionResult::Display(DisplayCommand::Draw(
+                    self.frame_buffer,
+                )))
             }
             Instruction::SkipIfPressed(_) => todo!(),
             Instruction::SkipIfNotPressed(_) => todo!(),
             Instruction::LoadFromDelay(x) => {
+                self.increment_pc(1);
                 self.write(x, self.read_delay());
                 Ok(InstructionResult::Success)
             }
             Instruction::WaitForKey(_) => todo!(),
             Instruction::LoadToDelay(x) => {
+                self.increment_pc(1);
                 self.write_delay(self.read(x));
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadToSound(x) => {
+                self.increment_pc(1);
                 self.write_sound(self.read(x));
                 Ok(InstructionResult::Success)
             }
             Instruction::AddToI(x) => {
+                self.increment_pc(1);
                 self.write_i(self.read_i() + self.read(x) as u16);
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadSpriteToI(x) => {
+                self.increment_pc(1);
                 // write to I the value of the sprite
                 // representing the hex value in x
                 self.write_i(self.read(x) as u16 * 5);
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadBcd(x) => {
+                self.increment_pc(1);
                 // TO TEST
                 let mut bcd: u16 = 0;
                 let mut shift = 0;
@@ -345,11 +382,13 @@ impl Chip8 {
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadToMemory(x) => {
+                self.increment_pc(1);
                 let range = self.read_i() as usize..(self.read_i() + x as u16) as usize;
                 self.memory.0[range].copy_from_slice(&self.registers.r[0..x as usize]);
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadFromMemory(x) => {
+                self.increment_pc(1);
                 let range = self.read_i() as usize..(self.read_i() + x as u16) as usize;
                 self.registers.r[0..x as usize].copy_from_slice(&self.memory.0[range]);
                 Ok(InstructionResult::Success)
@@ -399,7 +438,7 @@ pub fn parse_opcode(i: u16) -> Instruction {
         0x6000..0x7000 => Instruction::LoadInto(x_register(i), low_byte(i)),
         0x7000..0x8000 => Instruction::Add(x_register(i), low_byte(i)),
         0x8000..0x9000 => match low_nybble(i) {
-            0x0000 => Instruction::LoadIntoRegister(y_register(i), x_register(i)),
+            0x0000 => Instruction::LoadIntoRegister(x_register(i), y_register(i)),
             0x0001 => Instruction::Or(x_register(i), y_register(i)),
             0x0002 => Instruction::And(x_register(i), y_register(i)),
             0x0003 => Instruction::Xor(x_register(i), y_register(i)),
@@ -437,15 +476,11 @@ pub fn parse_opcode(i: u16) -> Instruction {
 }
 
 fn x_register(i: u16) -> Register {
-    Register::from_nybble(((i & 0x0F00) >> 12) as Nybble)
+    Register::from_nybble(((i & 0x0F00) >> 8) as Nybble)
 }
 
 fn y_register(i: u16) -> Register {
-    Register::from_nybble(((i & 0x00F0) >> 8) as Nybble)
-}
-
-fn hi_byte(i: u16) -> Nybble {
-    ((i >> 8) & 0xFF00) as Nybble
+    Register::from_nybble(((i & 0x00F0) >> 4) as Nybble)
 }
 
 fn low_byte(i: u16) -> Nybble {

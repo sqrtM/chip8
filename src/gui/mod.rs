@@ -37,8 +37,8 @@ pub fn handle_event<E>(
         } if window_id == window.id() => {
             if let (Some(width), Some(height)) = {
                 let size = PhysicalSize {
-                    width: 6400,
-                    height: 3200,
+                    width: 1280,
+                    height: 640,
                 };
                 (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
             } {
