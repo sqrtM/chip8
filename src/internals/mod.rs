@@ -7,8 +7,8 @@ use crate::{
 };
 use rand::prelude::*;
 
-const WHITE: u32 = 0b00000000_00000000_11111111_11111111;
-const BLACK: u32 = 0;
+const ON: u32 = 0b00000000_00000000_11111111_11111111;
+const OFF: u32 = 0;
 
 #[derive(Debug)]
 pub enum Instruction {
@@ -318,13 +318,16 @@ impl Chip8 {
                 for (i, byte) in s.data.0.iter().enumerate() {
                     let y_coord = (s.y as usize + i) % 32;
                     let width = 64;
-                    for j in (0..8).rev() {
-                        let x_coord = (s.x as usize + (8 - j - 1)) % width;
+                    for j in (1..8).rev() {
+                        let x_coord = (s.x as usize + (7 - j)) % width;
                         let index: usize = y_coord * width + x_coord;
                         self.frame_buffer[index] = if (byte >> j) & 1 == 1 {
-                            self.frame_buffer[index] ^ WHITE
+                            if self.frame_buffer[index] ^ ON != ON {
+                                self.write(Register::VF, 1)
+                            }
+                            self.frame_buffer[index] ^ ON
                         } else {
-                            BLACK
+                            OFF
                         };
                     }
                 }
