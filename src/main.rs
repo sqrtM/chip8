@@ -24,20 +24,13 @@ fn main() {
 
     std::thread::spawn(move || {
         let mut chip8 = Chip8::new(ro_controller);
-        chip8.memory.load("./data/2-ibm-logo.ch8");
-        //chip8.memory.load("./data/3-corax+.ch8");
+        //chip8.memory.load("./data/2-ibm-logo.ch8");
+        chip8.memory.load("./data/3-corax+.ch8");
 
         loop {
             let inst = internals::parse_opcode(
                 ((chip8.memory.0[chip8.registers.pc as usize] as u16) << 8)
                     | chip8.memory.0[chip8.registers.pc as usize + 1] as u16,
-            );
-            println!(
-                "{:?} ; {:2X}-{:2X} ; {:X?}",
-                inst,
-                (chip8.memory.0[chip8.registers.pc as usize] << 4) as u16,
-                chip8.memory.0[chip8.registers.pc as usize + 1] as u16,
-                chip8.registers.pc
             );
             match chip8.run_instruction(inst) {
                 Ok(s) => match s {
@@ -53,7 +46,7 @@ fn main() {
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
             match chip8.controller.try_read() {
-                Ok(v) => println!("{:?}", v.pressing),
+                Ok(v) => (),
                 Err(e) => println!("{}", e),
             }
         }

@@ -7,7 +7,7 @@ use crate::{
 };
 use rand::prelude::*;
 
-const WHITE: u32 = 0b00000000_11111111_11111111_11111111;
+const WHITE: u32 = 0b00000000_00000000_11111111_11111111;
 const BLACK: u32 = 0;
 
 #[derive(Debug)]
@@ -365,32 +365,21 @@ impl Chip8 {
             }
             Instruction::LoadBcd(x) => {
                 self.increment_pc(1);
-                // TO TEST
-                let mut bcd: u16 = 0;
-                let mut shift = 0;
-
-                let mut num = self.read(x);
-
-                while num > 0 {
-                    let digit = num % 10; // Get the last digit
-                    bcd |= (digit as u16) << shift; // Shift and combine into BCD
-                    num /= 10; // Remove the last digit
-                    shift += 4; // Move to the next BCD digit
-                }
-                // ?? ? ?? ? ?? ? ?? ? ?? ? ?? ? ?? ? ??
-                self.write_i(bcd);
+                let i = self.read_i() as usize;
+                let _x = self.read(x);
+                self.memory.0[i..=i + 2].copy_from_slice(&[_x / 100, (_x % 100) / 10, _x % 10]);
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadToMemory(x) => {
                 self.increment_pc(1);
-                let range = self.read_i() as usize..(self.read_i() + x as u16) as usize;
-                self.memory.0[range].copy_from_slice(&self.registers.r[0..x as usize]);
+                let range = self.read_i() as usize..=(self.read_i() + x as u16) as usize;
+                self.memory.0[range.clone()].copy_from_slice(&self.registers.r[0..=x as usize]);
                 Ok(InstructionResult::Success)
             }
             Instruction::LoadFromMemory(x) => {
                 self.increment_pc(1);
-                let range = self.read_i() as usize..(self.read_i() + x as u16) as usize;
-                self.registers.r[0..x as usize].copy_from_slice(&self.memory.0[range]);
+                let range = self.read_i() as usize..=(self.read_i() + x as u16) as usize;
+                self.registers.r[0..=x as usize].copy_from_slice(&self.memory.0[range]);
                 Ok(InstructionResult::Success)
             }
             Instruction::Nop => Ok(InstructionResult::Success),
