@@ -13,6 +13,7 @@ use winit::window::Window;
 #[derive(Default)]
 pub struct Controller {
     pub pressing: Vec<Key>,
+    pub last_released: Option<Key>,
 }
 
 pub trait UserEvent {
@@ -85,7 +86,7 @@ pub fn handle_event<E>(
                     }
                     ElementState::Released => {
                         if let Some(k) = v.pressing.iter().position(|x| x == &key) {
-                            v.pressing.remove(k);
+                            v.last_released = Some(v.pressing.remove(k));
                         }
                     }
                 };

@@ -8,7 +8,6 @@ pub struct Registers {
     pub delay: u8,
     pub sound: u8,
     pub pc: u16,
-    pub sp: u8,
     pub stack: Vec<u16>,
 }
 
@@ -20,7 +19,6 @@ impl Default for Registers {
             delay: 0,
             sound: 0,
             pc: 0x200,
-            sp: 0,
             stack: Vec::new(),
         }
     }

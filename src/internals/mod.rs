@@ -6,6 +6,7 @@ use crate::{
     internals::memory::{Ram, Registers},
 };
 use rand::prelude::*;
+use winit::keyboard::Key;
 
 const ON: u32 = 0b00000000_00000000_11111111_11111111;
 const OFF: u32 = 0;
@@ -49,6 +50,7 @@ pub enum Instruction {
     Nop,
 }
 
+#[derive(PartialEq)]
 pub enum DisplayCommand {
     ClearDisplay,
     Draw([u32; 2048]),
@@ -95,11 +97,96 @@ pub struct Sprite {
     data: SpriteData, // max length of 15 (0xF)
 }
 
+#[derive(PartialEq, Debug)]
+pub enum Button {
+    B0 = 0x00,
+    B1 = 0x01,
+    B2 = 0x02,
+    B3 = 0x03,
+    B4 = 0x04,
+    B5 = 0x05,
+    B6 = 0x06,
+    B7 = 0x07,
+    B8 = 0x08,
+    B9 = 0x09,
+    BA = 0x0A,
+    BB = 0x0B,
+    BC = 0x0C,
+    BD = 0x0D,
+    BE = 0x0E,
+    BF = 0x0F,
+}
+
+impl Button {
+    fn to_button(k: &Key) -> Option<Self> {
+        match k {
+            Key::Named(_) => None,
+            Key::Character(c) => match c.as_str() {
+                "A" => Some(Button::BA),
+                "B" => Some(Button::BB),
+                "C" => Some(Button::BC),
+                "D" => Some(Button::BD),
+                "E" => Some(Button::BE),
+                "F" => Some(Button::BF),
+                "1" => Some(Button::B1),
+                "2" => Some(Button::B2),
+                "3" => Some(Button::B3),
+                "4" => Some(Button::B4),
+                "5" => Some(Button::B5),
+                "6" => Some(Button::B6),
+                "7" => Some(Button::B7),
+                "8" => Some(Button::B8),
+                "9" => Some(Button::B9),
+                &_ => None,
+            },
+            Key::Unidentified(_) => None,
+            Key::Dead(_) => None,
+        }
+    }
+
+    fn from_u8(n: u8) -> Self {
+        match n {
+            0x0 => Button::B0,
+            0x1 => Button::B1,
+            0x2 => Button::B2,
+            0x3 => Button::B3,
+            0x4 => Button::B4,
+            0x5 => Button::B5,
+            0x6 => Button::B6,
+            0x7 => Button::B7,
+            0x8 => Button::B8,
+            0x9 => Button::B9,
+            0xA => Button::BA,
+            0xB => Button::BB,
+            0xC => Button::BC,
+            0xD => Button::BD,
+            0xE => Button::BE,
+            0xF => Button::BF,
+            _ => panic!("{n}"),
+        }
+    }
+}
+
+pub struct Chip8Controller(pub Arc<RwLock<Controller>>);
+
+impl Chip8Controller {
+    pub fn keys_to_buttons(&self) -> Vec<Option<Button>> {
+        self.0
+            .read()
+            .unwrap()
+            .pressing
+            .iter()
+            .map(Button::to_button)
+            .collect()
+    }
+}
+
 pub struct Chip8 {
     pub registers: Registers,
     pub memory: Ram,
-    pub controller: Arc<RwLock<Controller>>,
+    pub controller: Chip8Controller,
     pub frame_buffer: [u32; 2048],
+    pub status: InstructionResult,
 }
 
 impl Chip8 {
@@ -107,8 +194,9 @@ impl Chip8 {
         let mut c8 = Chip8 {
             registers: Registers::default(),
             memory: Ram::default(),
-            controller,
+            controller: Chip8Controller(controller),
             frame_buffer: [0; 2048],
+            status: InstructionResult::Success,
         };
         c8.memory.load("./data/inital_ram_data.chip8");
         c8
@@ -162,9 +250,11 @@ impl Register {
     }
 }
 
+#[derive(PartialEq)]
 pub enum InstructionResult {
     Success,
     Display(DisplayCommand),
+    Waiting,
 }
 
 impl Chip8 {
@@ -336,14 +426,68 @@ impl Chip8 {
                     self.frame_buffer,
                 )))
             }
-            Instruction::SkipIfPressed(_) => todo!(),
-            Instruction::SkipIfNotPressed(_) => todo!(),
+            Instruction::SkipIfPressed(x) => {
+                self.increment_pc(
+                    if self
+                        .controller
+                        .keys_to_buttons()
+                        .contains(&Some(Button::from_u8(self.read(x))))
+                    {
+                        2
+                    } else {
+                        1
+                    },
+                );
+                Ok(InstructionResult::Success)
+            }
+            Instruction::SkipIfNotPressed(x) => {
+                self.increment_pc(
+                    if !self
+                        .controller
+                        .keys_to_buttons()
+                        .contains(&Some(Button::from_u8(self.read(x))))
+                    {
+                        2
+                    } else {
+                        1
+                    },
+                );
+                Ok(InstructionResult::Success)
+            }
             Instruction::LoadFromDelay(x) => {
                 self.increment_pc(1);
                 self.write(x, self.read_delay());
                 Ok(InstructionResult::Success)
             }
-            Instruction::WaitForKey(_) => todo!(),
+            Instruction::WaitForKey(x) => {
+                if self.status != InstructionResult::Waiting {
+                    match self.controller.0.try_write() {
+                        Ok(mut c) => {
+                            c.last_released = None;
+                            Ok(InstructionResult::Waiting)
+                        }
+                        Err(_) => Err(()),
+                    }
+                } else {
+                    let con = Arc::clone(&self.controller.0);
+                    let r = con.try_read();
+                    match r {
+                        Ok(c) => match &c.last_released {
+                            Some(b) => {
+                                if Button::to_button(b).is_some() {
+                                    self.write(x, Button::to_button(b).unwrap() as u8);
+                                    Ok(InstructionResult::Success)
+                                } else {
+                                    Ok(InstructionResult::Waiting)
+                                }
+                            }
+                            None => Ok(InstructionResult::Waiting),
+                        },
+                        Err(_) => Err(()),
+                    }
+                }
+            }
+
             Instruction::LoadToDelay(x) => {
                 self.increment_pc(1);
                 self.write_delay(self.read(x));

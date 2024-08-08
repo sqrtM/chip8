@@ -1,5 +1,5 @@
 use crate::gui::{handle_event, Controller};
-use internals::{Chip8, DisplayCommand};
+use internals::{Chip8, DisplayCommand, InstructionResult};
 use softbuffer::Surface;
 use std::{
     rc::Rc,
@@ -25,7 +25,7 @@ fn main() {
     std::thread::spawn(move || {
         let mut chip8 = Chip8::new(ro_controller);
         //chip8.memory.load("./data/2-ibm-logo.ch8");
-        chip8.memory.load("./data/3-corax+.ch8");
+        //chip8.memory.load("./data/3-corax+.ch8");
 
         loop {
             let inst = internals::parse_opcode(
@@ -34,7 +34,9 @@ fn main() {
             );
             match chip8.run_instruction(inst) {
                 Ok(s) => match s {
-                    internals::InstructionResult::Success => (),
+                    internals::InstructionResult::Success | InstructionResult::Waiting => {
+                        println!("{:?}", chip8.controller.keys_to_buttons())
+                    }
                     internals::InstructionResult::Display(d) => {
                         match _event_loop_proxy.send_event(d) {
                             Ok(()) => (),
@@ -45,7 +47,7 @@ fn main() {
                 Err(e) => println!("{:?}", e),
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
-            match chip8.controller.try_read() {
+            match chip8.controller.0.try_read() {
                 Ok(v) => (),
                 Err(e) => println!("{}", e),
             }
