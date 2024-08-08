@@ -26,7 +26,7 @@ fn main() {
         let mut chip8 = Chip8::new(ro_controller);
         //chip8.memory.load("./data/2-ibm-logo.ch8");
         //chip8.memory.load("./data/3-corax+.ch8");
-
+        chip8.memory.load("./data/pong.ch8");
         loop {
             let inst = internals::parse_opcode(
                 ((chip8.memory.0[chip8.registers.pc as usize] as u16) << 8)
@@ -46,7 +46,10 @@ fn main() {
                 },
                 Err(e) => println!("{:?}", e),
             }
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            if chip8.registers.delay > 0 {
+                chip8.registers.delay -= 1;
+            }
             match chip8.controller.0.try_read() {
                 Ok(v) => (),
                 Err(e) => println!("{}", e),

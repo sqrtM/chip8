@@ -137,6 +137,7 @@ impl Button {
                 "7" => Some(Button::B7),
                 "8" => Some(Button::B8),
                 "9" => Some(Button::B9),
+                "0" => Some(Button::B0),
                 &_ => None,
             },
             Key::Unidentified(_) => None,
@@ -266,6 +267,7 @@ impl Chip8 {
         match i {
             Instruction::ClearDisplay => {
                 self.increment_pc(1);
+                self.frame_buffer.fill(0);
                 Ok(InstructionResult::Display(DisplayCommand::ClearDisplay))
             }
             Instruction::ReturnFromSubRoutine => match self.registers.stack.pop() {
